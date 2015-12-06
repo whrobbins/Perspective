@@ -1,0 +1,1 @@
+A chrome extension (just a content script, really) that parses the DOM for dollar signs and replaces the associated dollar value with a phrase representing the potential charitable impact that money could have.

@@ -1,0 +1,14 @@
+{
+	"manifest_version": 2,
+	"name": "Per$pective",
+	"version": "1.0",
+	"description": "Replaces dollar amounts with the charitable impact that amount could have",
+
+	"content_scripts": [
+		{
+			"matches": ["*://*/*"],
+	    	"js": ["main.js"],
+	    	"run_at": "document_end"
+	    }
+	]
+}
