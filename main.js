@@ -3,12 +3,12 @@
  *
  *  Main.js is a content script that executes at the end of every page load.  It walks the DOM and replaces text.
  */
+
+// Toggle for console outputs
 var DEV_MODE = true;
 
-if(DEV_MODE) var str = generateHTML(getPerspective(50.00));
-if(DEV_MODE) console.log("generatedHTML: ");
-if(DEV_MODE) console.log(str);
-if(DEV_MODE) console.log(typeof str);
+// Regular Expression matching dollar values (eg. matches $5.00)
+var re = /\$+\d+((,\d{3})*)\.?[0-9]?[0-9]?/gi;
 
 walkDOM(document.body);
 
@@ -16,18 +16,21 @@ walkDOM(document.body);
  *  Walks the DOM and calls replaceText for each text node that contains matching text.
  */
 function walkDOM(node) {
-	var child, next;
 
-    if (node.nodeType === 1 || node.nodeType === 9 || node.nodeType === 11) {
-        // Element, Document, or Fragment node
-        child = node.firstChild;
-        while (child) {
-            next = child.nextSibling;
-            walkDOM(child);
-            child = next;
+	var next;
+
+    if (node.nodeType === 1) { // Element
+        if (node = node.firstChild) {
+            do { // Calls walkDOM on every child node
+                next = node.nextSibling;
+                walkDOM(node);
+            } while(node = next);
         }
+
     } else if (node.nodeType === 3) { // Text node
-        replaceText(node);
+        if (re.test(node.data)) {
+            replaceText(node);
+        }
     }
 }
 
@@ -35,59 +38,64 @@ function walkDOM(node) {
  *  Parses the given text node for a dollar amount (if it exists), and replaces it appropriately
  */
 function replaceText(textNode) {
-    var amount;
-    var text = textNode.nodeValue;
-    var re = /\$+\d+((,\d{3})*)\.?[0-9]?[0-9]?/g;
-    var match = re.exec(text);
 
-    if (match == null)
+    var match = [].concat(re.exec(textNode.nodeValue));
+
+    if (match == null || match.length === 0)
         return;
 
-    //debugger;
+    if(DEV_MODE) console.log("Text node found: " + textNode.nodeValue);
+    if(DEV_MODE) console.log("Match for the above text node: " + match + " Is array: " + (match instanceof Array) + " Print array :" + match);
 
-    if(DEV_MODE) console.log("Text node found: " + text);
-    if(DEV_MODE) console.log("Match for the above text node: " + match + "Is array: " + (match instanceof Array));
-
-    if (typeof match === "string") {
-        if(DEV_MODE) console.log("Type of non-array match:")
-        if(DEV_MODE) console.log("Is not array. Replacing " + match + " with " + generateHTML(getPerspective(amount)));
-        amount = parseFloat(match.substring(1,match.length)).toFixed(2);
-        text = text.replace(re, generateHTML(getPerspective(amount)));
-    }
-    else if (0 < match.length) {
-        for (var i = 0; i < match.length; i++) {
-            if (match[i] !== null && typeof match[i] !== 'undefined' && match[i] !== '') {
-                if(DEV_MODE) console.log("Is array.  Replacing " + match[i] + " with " + generateHTML(getPerspective(amount)));
-                amount = parseFloat(match[i].substring(1, match[i].length)).toFixed(2);
-                text = text.replace(re, generateHTML(getPerspective(amount)));
-            }
+    for (var i = 0; i < match.length; i++) {
+        if (match[i] !== null && typeof match[i] !== 'undefined' && match[i] !== '') {
+            var amount = parseFloat(match[i].substring(1, match[i].length)).toFixed(2);
+            generateHTML(getPerspective(amount), textNode);
+            if(DEV_MODE) console.log("generateHTML just ran");
         }
     }
-
-	textNode.nodeValue = text;
 }
 
 /**
- *  Generates HTML to be injected, based on an object representing a potential impact
+ *  Generates a DOM element to be injected, based on an object representing a potential impact
  *  Object format:
  *      { verb: "Save", number: 10, outcome: "goldfish from dying",
  *          link: "http://savethefish.org/donate&amount=10", originalValue: 19.99 }
  */
-function generateHTML(impact) {
-    // Dummy content for testing
-    if(DEV_MODE) impact = { verb: "Save", number: 10, outcome: "goldfish from dying", link: "http://savethefish.org/donate&amount=10", originalValue: 19.99 }
+function generateHTML(impact, textNode) {
 
-    var perspective;
-    // Font/Typeface settings
-    perspective = '<span class="perspective" ' +
-        'style="max-width: 90px; ' +
-        'color: rgb(0, 0, 0); ' +
-        'background: rgb(203, 215, 233);">';
-    // Content
-    perspective += '<a href="' + impact.link + '">' + impact.verb + ' ' + impact.number + ' ' +
-        impact.outcome + '</a>' + '$(' + impact.originalValue + ')' + '</span>';
+    if(textNode.parentNode == null) return;
 
-    return perspective;
+    var newDiv = document.createElement('div');
+    newDiv.setAttribute('class', 'perspective');
+    // newDiv.setAttribute('style', 'max-width: 90px; ' + 
+    //                             'color: rgb(0, 0, 0); ' + 
+    //                             'background: rgb(203, 215, 233);');
+
+    newDiv.innerHTML = textNode.data.replace(re, '<span>' + 
+                                                '<a ' + 'style="' +
+                                                'max-width: 90px; ' + 
+                                                'color: rgb(0, 0, 0); ' + 
+                                                'background: rgb(203, 215, 233);"' +
+                                                'href="' + impact.link + '">' + 
+                                                impact.verb + ' ' + 
+                                                impact.number + ' ' + 
+                                                impact.outcome + '</a>' + 
+                                                ' ($' + impact.originalValue + ')' + 
+                                                '</span>'); 
+
+    if(DEV_MODE) console.log('newDiv innerHTML: ' + newDiv.innerHTML);
+    if(DEV_MODE) console.log('Print newDiv: ' + newDiv);
+    if(DEV_MODE) console.log('textNode Parent: ' + textNode.parentNode);
+    if(DEV_MODE) console.log('textNode type: ' + textNode.nodeType);
+   
+    // Rearrange the nodes
+    while (newDiv.firstChild) {
+        textNode.parentNode.insertBefore(newDiv.firstChild, textNode);
+    }
+
+    // Remove original textNode
+    textNode.parentNode.removeChild(textNode);
 }
 
 /**
@@ -99,8 +107,16 @@ function generateHTML(impact) {
  *  TODO: Write this method...
  */
 function getPerspective(amount) {
+
+    // Dummy content for testing
+    if(DEV_MODE) return { verb: "Save", 
+                            number: 10, 
+                            outcome: "goldfish from dying", 
+                            link: "http://savethefish.org/donate&amount=10", 
+                            originalValue: 19.99 };
+
     // Impacts correlated to 'amount,' grouped within an order of magnitude of each other
-    // To access, use impactOf.one[2] for second option in the one category
+    // Example: use impactOf.one[2] for second option in the one category
     impactOf = {
         "one":["list"],
         "ten":["list"],
