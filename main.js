@@ -15,7 +15,7 @@ walkDOM(document.body);
  */
 function walkDOM(node) {
 
-	var next;
+    var next;
 
     if (node.nodeType === 1) {  // Element
         if (node = node.firstChild) {
